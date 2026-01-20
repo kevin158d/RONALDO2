@@ -1,24 +1,27 @@
-const sql = require('mssql');
+const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-const dbConfig = {
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  server: process.env.DB_SERVER,
-  database: process.env.DB_NAME,
-  options: {
-    encrypt: process.env.DB_ENCRYPT === 'true',
-    trustServerCertificate: process.env.DB_TRUST_CERT === 'true',
-    //trustedConnection: true // HABILITA LA AUTENTICACIÓN DE WINDOWS
-  },
-};
+// Creamos la conexión (Pool)
+const pool = mysql.createPool({
+  host: process.env.DB_SERVER || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD, // Esto leerá 'sistemas' de tu .env
+  database: process.env.DB_NAME || 'SistemaAldq',
+  port: process.env.DB_PORT || 3306,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+});
 
-let pool = null;
+// PRUEBA DE CONEXIÓN AL INICIAR
+pool.getConnection()
+  .then(connection => {
+    console.log('✅ Base de datos (MySQL) conectada correctamente');
+    connection.release();
+  })
+  .catch(error => {
+    console.error('❌ Error al conectar con la Base de Datos:', error.message);
+  });
 
-const getConnection = async () => {
-  if (pool) return pool;
-  pool = await sql.connect(dbConfig);
-  return pool;
-};
-
-module.exports = { getConnection, sql };
+// OJO: Exportamos "pool" directamente, sin llaves {}
+module.exports = pool;

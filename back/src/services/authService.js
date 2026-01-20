@@ -1,51 +1,48 @@
-const sql = require('mssql');
+const pool = require('../config/database');
 const jwt = require('jsonwebtoken');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'clave_secreta_cambiar';
+const bcrypt = require('bcryptjs'); // <--- Nueva librería
 
 class AuthService {
   async login(username, password) {
     try {
-      // Intentar conectar con las credenciales del usuario SQL Server
-      const config = {
-        user: username,
-        password: password,
-        server: process.env.DB_SERVER,
-        database: process.env.DB_NAME,
-        options: {
-          encrypt: process.env.DB_ENCRYPT === 'true',
-          trustServerCertificate: process.env.DB_TRUST_CERT === 'true'
-        },
-        connectionTimeout: 5000
-      };
+      const [rows] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
 
-      const pool = await sql.connect(config);
-      await pool.close();
+      if (!rows || rows.length === 0) {
+        return { success: false, message: 'Usuario no encontrado' };
+      }
 
-      // Si llegó aquí, credenciales válidas
+      const user = rows[0];
+
+      // COMPARACIÓN SEGURA:
+      // Comparamos la contraseña escrita (texto) con la encriptada de la BD (hash)
+      const passwordValida = await bcrypt.compare(password, user.password);
+
+      if (!passwordValida) {
+        return { success: false, message: 'Contraseña incorrecta' };
+      }
+
       const token = jwt.sign(
-        { username: username, loginTime: new Date() },
-        JWT_SECRET,
+        { id: user.id, username: user.username },
+        process.env.JWT_SECRET || 'secreto',
         { expiresIn: '8h' }
       );
 
       return {
         success: true,
         token,
-        usuario: { username }
+        usuario: { id: user.id, username: user.username }
       };
 
     } catch (error) {
-      return {
-        success: false,
-        message: 'Usuario o contraseña incorrectos'
-      };
+      console.error('Error Auth:', error);
+      return { success: false, message: 'Error de servidor' };
     }
   }
 
+  // verifyToken se queda igual...
   verifyToken(token) {
     try {
-      const decoded = jwt.verify(token, JWT_SECRET);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secreto');
       return { valid: true, usuario: decoded };
     } catch (error) {
       return { valid: false, message: 'Token inválido' };

@@ -13,6 +13,12 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+app.use((req, res, next) => {
+  console.log(`📢 LLEGÓ UNA PETICIÓN: ${req.method} ${req.path}`);
+  console.log('📦 DATOS RECIBIDOS:', req.body);
+  next();
+});
+
 // Rutas públicas (sin autenticación)
 app.use('/api/auth', authRoutes);
 
